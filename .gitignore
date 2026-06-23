@@ -2,4 +2,34 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# 환경변수
 .env
+
+# 테스트 코드
+project/test_accessory.py
+project/test_face_mesh_all.py
+project/test_face_mesh.py
+project/test_mask.py
+project/test_preprocessing.py
+project/test_regions.py
+project/test.py
+
+# 테스트 이미지
+images/
+output/
+
+# 테스트 코드
+test*.py
+
+# YOLO 모델
+*.pt
+
+# YOLO 학습 데이터
+datasets/
+
+# YOLO 캐시
+*.cache
+
+# 저장 파일
+storage/
