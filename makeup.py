@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import base64
 
 def apply_full_foundation_stream(src_img, skin_mask, foundation_rgb, alpha=0.22):
     """
@@ -45,13 +44,3 @@ def apply_full_foundation_stream(src_img, skin_mask, foundation_rgb, alpha=0.22)
         return final_output
         
     return blended_full
-
-def convert_to_base64(image_array):
-    """
-    [설명] 메이크업이 완료된 결과 이미지 배열(Numpy Array)을 프론트엔드로 즉시 전송할 수 있도록 Base64 인코딩하는 함수.
-    """
-    if image_array is None:
-        return ""
-    _, buffer = cv2.imencode('.jpg', image_array)
-    base64_str = base64.b64encode(buffer).decode('utf-8')
-    return f"data:image/jpeg;base64,{base64_str}"
