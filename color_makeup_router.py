@@ -2,7 +2,7 @@ import os
 import uuid
 import cv2
 import numpy as np
-import requests
+import requests 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from typing import List
@@ -20,13 +20,19 @@ os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
 color_analyzer = PersonalColorAnalyzer()
 
 # =========================================================================
-# [DTO 정의] 팀원들과 합의된 100% 완전한 URL 기반 JSON 스펙
+# [DTO 정의] 기획서 및 팀원 스펙에 맞춘 데이터 모델
 # =========================================================================
 class FileItem(BaseModel):
     file_type: str = Field(..., description="파일 타입 용도 (예: skin_region, skin_mask 등)", example="skin_region")
     file_url: str = Field(..., description="해당 파일에 접근 가능한 웹 URL 주소", example="http://127.0.0.1:8000/storage/roi/xxx.png")
 
-class ProcessRequest(BaseModel):
+# 1. 퍼스널 컬러 진단용 요청 모델
+class PersonalColorRequest(BaseModel):
+    user_id: int = Field(..., description="유저 고유 식별 일련번호", example=1)
+    files: List[FileItem] = Field(..., description="ROIExporter가 생성한 이미지 URL 객체 리스트")
+
+# 2. 가상 메이크업 합성용 요청 모델
+class VirtualMakeupRequest(BaseModel):
     user_id: int = Field(..., description="유저 고유 식별 일련번호", example=1)
     target_foundation_rgb: List[int] = Field([245, 222, 179], description="사용자가 UI에서 선택한 파운데이션 RGB 배열", example=[245, 222, 179])
     files: List[FileItem] = Field(..., description="ROIExporter가 생성한 이미지 URL 객체 리스트")
@@ -50,45 +56,65 @@ def download_url_to_cv2(url_string: str) -> np.ndarray:
         print(f" URL 다운로드 실패 ({url_string}): {e}")
         return None
 
-
-# =========================================================================
-# [핵심 파이프라인 엔드포인트]
-# =========================================================================
-@router.post("/process")
-def process_ai_pipeline_from_urls(payload: ProcessRequest, request: Request):
-    
-    # 1. 이미지 딕셔너리 동적 조립
+# 이미지 다운로드 및 필수 가드레일 공통 검증 유틸
+def fetch_and_validate_regions(files: List[FileItem]) -> dict:
     regions_dictionary = {}
-    
-    for file_item in payload.files:
-        f_type = file_item.file_type
-        u_url = file_item.file_url
-        
-        cv2_img = download_url_to_cv2(u_url)
+    for file_item in files:
+        cv2_img = download_url_to_cv2(file_item.file_url)
         if cv2_img is not None:
-            regions_dictionary[f_type] = cv2_img
+            regions_dictionary[file_item.file_type] = cv2_img
 
-    # 2. 필수 가드레일 체크
     required_files = [
         "skin_region", "skin_mask", "forehead_region", 
         "left_cheek_region", "right_cheek_region", 
         "iris_region", "eyebrow_region", "lip_region"
     ]
-    
     missing_files = [file for file in required_files if file not in regions_dictionary]
     if missing_files:
         raise HTTPException(
             status_code=400, 
             detail=f"분석에 필요한 필수 이미지 배달이 실패했습니다. 누락 항목: {missing_files}"
         )
+    return regions_dictionary
 
+
+# =========================================================================
+# [1️⃣ 퍼스널 컬러 진단 엔드포인트]
+# =========================================================================
+@router.post("/personal-color")
+def process_personal_color_only(payload: PersonalColorRequest):
+    """
+    [기획서 명세 1] 컬러 진단명과 대표 피부색 RGB 전송
+    """
+    # 이미지 다운로드 및 가드레일 체크
+    regions_dictionary = fetch_and_validate_regions(payload.files)
+
+    # Personal Color 진단 모듈 가동
+    color_result = color_analyzer.diagnose_from_regions(regions_dictionary)
+
+    # 응답 규격 리턴
+    return {
+        "status": "success",
+        "user_id": payload.payload.user_id if hasattr(payload, 'payload') else payload.user_id,
+        "personal_color": color_result["personal_color"],
+        "detected_skin_rgb": color_result["skin_rgb"]
+    }
+
+
+# =========================================================================
+# [2️⃣ 가상 메이크업 합성 엔드포인트]
+# =========================================================================
+@router.post("/virtual-makeup")
+def process_virtual_makeup_only(payload: VirtualMakeupRequest, request: Request):
+    """
+    [기획서 명세 2] 선택 파운데이션 기반 메이크업 합성 이미지 URL 생성
+    """
+    # 이미지 다운로드 및 가드레일 체크
+    regions_dictionary = fetch_and_validate_regions(payload.files)
     src_img = regions_dictionary["skin_region"]
     skin_mask = regions_dictionary["skin_mask"]
 
-    # 3. Personal Color 진단 모듈 가동
-    color_result = color_analyzer.diagnose_from_regions(regions_dictionary)
-
-    # 4. 가상 메이크업 파운데이션 엔진 구동
+    # 가상 메이크업 파운데이션 엔진 구동
     if len(skin_mask.shape) == 3:
         skin_mask = cv2.cvtColor(skin_mask, cv2.COLOR_BGR2GRAY)
 
@@ -99,24 +125,22 @@ def process_ai_pipeline_from_urls(payload: ProcessRequest, request: Request):
         alpha=0.22
     )
 
-    # 5. 🌟 [디렉토리 구분 반영] 유저 ID별 전용 디렉토리 경로 빌드 및 동적 생성
+    # [디렉토리 구분 기능] 유저 ID별로 전용 폴더 동적 생성
     user_output_dir = os.path.join(BASE_OUTPUT_DIR, str(payload.user_id))
     os.makedirs(user_output_dir, exist_ok=True)
 
-    # 6. 고유 파일명 생성 후 유저별 폴더에 물리적 저장
+    # 고유한 파일명 매핑 및 유저 전용 디렉토리에 저장
     unique_filename = f"makeup_{uuid.uuid4().hex[:8]}.jpg"
     file_save_path = os.path.join(user_output_dir, unique_filename)
     cv2.imwrite(file_save_path, makeup_img)
 
-    # 7. 🌟 완전한 도메인 URL 생성 (경로 주소에 user_id 폴더 반영)
+    # 완전한 도메인 URL 생성 (경로에 user_id 반영)
     base_url = str(request.base_url).rstrip("/")
     full_image_url = f"{base_url}/static/makeup_outputs/{payload.user_id}/{unique_filename}"
 
-    # 8. 프론트 규격에 맞춰 딕셔너리 내부 값을 쪼개서 정확히 리턴
+    # 응답 규격 리턴
     return {
         "status": "success",
         "user_id": payload.user_id,
-        "personal_color": color_result["personal_color"],
-        "detected_skin_rgb": color_result["skin_rgb"],
         "makeup_image_url": full_image_url
     }
