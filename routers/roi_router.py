@@ -8,7 +8,7 @@ from schemas.roi_schema import (
 )
 
 router = APIRouter(
-    prefix="/api/roi",
+    prefix="/ai/roi",
     tags=["ROI"]
 )
 

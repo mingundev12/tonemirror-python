@@ -8,8 +8,8 @@ from fastapi.staticfiles import StaticFiles
 
 from routers.preprocess_router import router as preprocess_router
 from routers.roi_router import router as roi_router
+from routers.color_makeup_router import router as color_makeup_router
 
-from models.generated_file_log import GeneratedFileLog
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,12 +18,14 @@ logging.basicConfig(
 
 load_dotenv()
 
+# FastAPI App
 app = FastAPI(
     title="Personal Color preprocessing Server",
-    description="이미지 전처리 및 ROI 생성 서버",
+    description="전처리, 분석, 메이크업 AI 통합 서버",
     version="1.0.0"
 )
 
+# Preprocess 파일 경로
 app.mount(
     "/storage",
     StaticFiles(
@@ -32,13 +34,24 @@ app.mount(
     name="storage"
 )
 
+# Makeup 결과 저장 경로
+BASE_OUTPUT_DIR = "static/makeup_outputs"
+os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
+
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
+
 # Router 등록
 app.include_router(preprocess_router)
 app.include_router(roi_router)
+app.include_router(color_makeup_router)
 
 # Health Check API
 @app.get("/")
-def heath_check():
+def health_check():
     return {
         "status": "ok",
         "message": "Preprocessing server is running"

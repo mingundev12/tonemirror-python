@@ -9,7 +9,7 @@ from schemas.preprocess_schema import PreprocessResponse
 from services.preprocess_service import PreprocessService
 
 router = APIRouter(
-    prefix="/api",
+    prefix="/ai",
     tags=["Preprocessing"]
 )
 
