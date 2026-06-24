@@ -4,38 +4,21 @@ import cv2
 import numpy as np
 import requests 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
 from typing import List
 
-# [내 핵심 비즈니스 모듈 바인딩]
-from personal_color_analyzer import PersonalColorAnalyzer
-from makeup import apply_full_foundation_stream
+# [내 핵심 비즈니스 모듈 바인딩] 
+from services.color_service import PersonalColorAnalyzer
+from services.makeup_service import apply_full_foundation_stream
+
+# [DTO 모듈 바인딩]
+from schemas.color_makeup_schema import PersonalColorRequest, VirtualMakeupRequest, FileItem
 
 router = APIRouter(prefix="/ai", tags=["Color & Makeup Processing Pipeline"])
 
-# 최상위 기본 출력 디렉토리 정의
+# 중복 os.makedirs 제거하고 경로 상수만 통일성 있게 관리
 BASE_OUTPUT_DIR = "static/makeup_outputs"
-os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
 
 color_analyzer = PersonalColorAnalyzer()
-
-# =========================================================================
-# [DTO 정의] 기획서 및 팀원 스펙에 맞춘 데이터 모델
-# =========================================================================
-class FileItem(BaseModel):
-    file_type: str = Field(..., description="파일 타입 용도 (예: skin_region, skin_mask 등)", example="skin_region")
-    file_url: str = Field(..., description="해당 파일에 접근 가능한 웹 URL 주소", example="http://127.0.0.1:8000/storage/roi/xxx.png")
-
-# 1. 퍼스널 컬러 진단용 요청 모델
-class PersonalColorRequest(BaseModel):
-    user_id: int = Field(..., description="유저 고유 식별 일련번호", example=1)
-    files: List[FileItem] = Field(..., description="ROIExporter가 생성한 이미지 URL 객체 리스트")
-
-# 2. 가상 메이크업 합성용 요청 모델
-class VirtualMakeupRequest(BaseModel):
-    user_id: int = Field(..., description="유저 고유 식별 일련번호", example=1)
-    target_foundation_rgb: List[int] = Field([245, 222, 179], description="사용자가 UI에서 선택한 파운데이션 RGB 배열", example=[245, 222, 179])
-    files: List[FileItem] = Field(..., description="ROIExporter가 생성한 이미지 URL 객체 리스트")
 
 
 # =========================================================================
@@ -95,7 +78,7 @@ def process_personal_color_only(payload: PersonalColorRequest):
     # 응답 규격 리턴
     return {
         "status": "success",
-        "user_id": payload.payload.user_id if hasattr(payload, 'payload') else payload.user_id,
+        "user_id": payload.user_id,
         "personal_color": color_result["personal_color"],
         "detected_skin_rgb": color_result["skin_rgb"]
     }
