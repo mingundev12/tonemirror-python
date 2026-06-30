@@ -37,7 +37,6 @@ def fetch_and_validate_personal_color_regions(files: List[FileItem]) -> dict:
         if img is not None:
             regions_dictionary[file_item.file_type] = img
 
-    # ⭕ 서비스(color_service.py) 규격과 정확히 일치하도록 Key 명칭 전면 수정
     required_types = [
         "skin_region", "skin_mask", "forehead_region", 
         "left_cheek_region", "right_cheek_region", 
@@ -65,7 +64,9 @@ def fetch_and_validate_makeup_regions(files: List[FileItem]) -> dict:
             if img is not None:
                 regions_dictionary[file_item.file_type] = img
 
+    # 🛠️ [수정] 메이크업 합성에 꼭 필요한 2개 파트만 타이트하게 검증하도록 교정
     required_types = ["skin_region", "skin_mask"]
+    
     missing_elements = [r_type for r_type in required_types if r_type not in regions_dictionary]
     if missing_elements:
         raise HTTPException(
