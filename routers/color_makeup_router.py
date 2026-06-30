@@ -8,7 +8,8 @@ from typing import List
 
 from services.color_service import PersonalColorAnalyzer
 from services.makeup_service import apply_full_foundation_stream
-from schemas.color_makeup_schema import PersonalColorRequest, VirtualMakeupRequest, FileItem
+# 🛠️ PersonalColorRequest Import 제거 완료
+from schemas.color_makeup_schema import VirtualMakeupRequest, FileItem
 
 router = APIRouter(prefix="/ai", tags=["Color & Makeup Processing Pipeline"])
 
@@ -28,91 +29,51 @@ def download_url_to_cv2(url_string: str) -> np.ndarray:
         return None
 
 # =========================================================================
-# [1️⃣ 퍼스널 컬러용 검증 가드레일 - 8개 영역 전체 필수]
+# [1️⃣ 통합 검증 가드레일 - 8개 영역 전체 필수 및 최적화]
 # =========================================================================
 def fetch_and_validate_personal_color_regions(files: List[FileItem]) -> dict:
+    """
+    [존재 이유] 중복 다운로드로 인한 network 자원 낭비를 막고, 정확한 피부 톤 분석을 사전에 보장하여 메이크업 연산의 연쇄 에러를 방지하는 무결성 가드레일입니다.
+    """
     regions_dictionary = {}
     for file_item in files:
-        cv2_img = download_url_to_cv2(file_item.file_url)
-        if cv2_img is not None:
-            regions_dictionary[file_item.file_type] = cv2_img
+        img = download_url_to_cv2(file_item.file_url)
+        if img is not None:
+            regions_dictionary[file_item.file_type] = img
 
-    required_files = [
+    required_types = [
         "skin_region", "skin_mask", "forehead_region", 
         "left_cheek_region", "right_cheek_region", 
         "iris_region", "eyebrow_region", "lip_region"
     ]
-    missing_files = [file for file in required_files if file not in regions_dictionary]
-    if missing_files:
+    
+    missing_elements = [r_type for r_type in required_types if r_type not in regions_dictionary]
+    if missing_elements:
         raise HTTPException(
-            status_code=400, 
-            detail=f"퍼스널 컬러 분석에 필요한 필수 이미지 누락: {missing_files}"
+            status_code=422,
+            detail=f"퍼스널 컬러 진단 및 메이크업에 필요한 파트가 누락되었습니다: {missing_elements}"
         )
+        
     return regions_dictionary
 
 
 # =========================================================================
-# [2️⃣ 가상 메이크업용 검증 가드레일 - 💡 필요한 2개 영역만 필터링]
-# =========================================================================
-def fetch_and_validate_makeup_regions(files: List[FileItem]) -> dict:
-    regions_dictionary = {}
-    for file_item in files:
-        # 프론트가 8개를 통째로 보내더라도, 메이크업에 필요한 2개만 쏙 골려서 다운로드 연산 수행
-        if file_item.file_type in ["skin_region", "skin_mask"]:
-            cv2_img = download_url_to_cv2(file_item.file_url)
-            if cv2_img is not None:
-                regions_dictionary[file_item.file_type] = cv2_img
-
-    # 메이크업 필수 요소만 타이트하게 체크 ⭕
-    required_files = ["skin_region", "skin_mask"]
-    missing_files = [file for file in required_files if file not in regions_dictionary]
-    if missing_files:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"가상 메이크업 합성에 필요한 필수 이미지 누락: {missing_files}"
-        )
-    return regions_dictionary
-
-
-# =========================================================================
-# [3️⃣ 퍼스널 컬러 진단 엔드포인트] - 강사님 피드백 반영 완결본 ⭕
-# =========================================================================
-@router.post("/personal-color")
-def process_personal_color_only(payload: PersonalColorRequest):
-    # 8개 영역 전체 검증 함수 호출
-    regions_dictionary = fetch_and_validate_personal_color_regions(payload.files)
-    color_result = color_analyzer.diagnose_from_regions(regions_dictionary)
-
-    skin_hex = f"#{color_result['skin_rgb'][0]:02X}{color_result['skin_rgb'][1]:02X}{color_result['skin_rgb'][2]:02X}"
-
-    # 🔥 [강사님 피드백 반영] 프론트가 보낸 8개 파일 중, 차후 메이크업에 사용할 2개만 필터링하여 담아줍니다.
-    makeup_inputs = [
-        file for file in payload.files 
-        if file.file_type in ["skin_region", "skin_mask"]
-    ]
-
-    return {
-        "status": "success",
-        "user_id": payload.user_id,
-        "personal_color": color_result["personal_color"],
-        "detected_skin_hex": skin_hex,
-        # 🔥 스프링과 프론트엔드가 기억할 수 있도록 메이크업 입력 원본 소스를 응답에 추가하여 전송합니다.
-        "makeup_inputs": makeup_inputs 
-    }
-
-
-# =========================================================================
-# [4️⃣ 가상 메이크업 합성 엔드포인트]
+# [2️⃣ 가상 메이크업 합성 엔드포인트 (내부 파라미터로 퍼컬 진단 통합)]
 # =========================================================================
 @router.post("/virtual-makeup")
 def process_virtual_makeup_only(payload: VirtualMakeupRequest, request: Request):
-    # 메이크업 전용 가드레일 함수로 전격 교체! ⭕
-    regions_dictionary = fetch_and_validate_makeup_regions(payload.files)
+    # 8개 영역 전체 검증 함수 호출하여 이미지를 단 한 번만 다운로드 및 검증 (연산 중복 제거)
+    regions_dictionary = fetch_and_validate_personal_color_regions(payload.files)
     
+    # 1. 내부 파라미터 연산: 다운로드된 데이터를 기반으로 퍼스널 컬러 진단 수행
+    color_result = color_analyzer.diagnose_from_regions(regions_dictionary)
+    skin_hex = f"#{color_result['skin_rgb'][0]:02X}{color_result['skin_rgb'][1]:02X}{color_result['skin_rgb'][2]:02X}"
+    
+    # 2. 메이크업 합성 연산 수행
     src_img = regions_dictionary["skin_region"]
     skin_mask = regions_dictionary["skin_mask"]
 
-    # 헥스코드 변환 로직
+    # 헥스코드 변환 로직 (# 제거 후 RGB 파싱)
     hex_str = payload.target_foundation_hex.lstrip('#')
     target_rgb = [int(hex_str[i:i+2], 16) for i in (0, 2, 4)]
 
@@ -126,7 +87,8 @@ def process_virtual_makeup_only(payload: VirtualMakeupRequest, request: Request)
         alpha=0.22
     )
 
-    user_output_dir = os.path.join(BASE_OUTPUT_DIR, str(payload.user_id))
+    # 원본 이미지 ID 단위로 임시 출력 디렉토리 분리 (휘발성 세션 데이터 꼬임 방지)
+    user_output_dir = os.path.join(BASE_OUTPUT_DIR, str(payload.original_image_id))
     os.makedirs(user_output_dir, exist_ok=True)
 
     unique_filename = f"makeup_{uuid.uuid4().hex[:8]}.jpg"
@@ -134,16 +96,19 @@ def process_virtual_makeup_only(payload: VirtualMakeupRequest, request: Request)
     cv2.imwrite(file_save_path, makeup_img)
 
     base_url = str(request.base_url).rstrip("/")
-    full_image_url = f"{base_url}/static/makeup_outputs/{payload.user_id}/{unique_filename}"
+    full_image_url = f"{base_url}/static/makeup_outputs/{payload.original_image_id}/{unique_filename}"
 
     original_image_url = next(
         (file.file_url for file in payload.files if file.file_type == "skin_region"), 
         None
     )
 
+    # 최종 결과 반환: 진단된 퍼스널 컬러와 메이크업 결과를 한 번에 묶어서 프론트에 리턴
     return {
         "status": "success",
-        "user_id": payload.user_id,
+        "original_image_id": payload.original_image_id,
+        "personal_color": color_result["personal_color"],
+        "detected_skin_hex": skin_hex,
         "selected_foundation_hex": payload.target_foundation_hex,
         "original_image_url": original_image_url,
         "makeup_image_url": full_image_url

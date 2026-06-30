@@ -61,24 +61,23 @@ class PersonalColorAnalyzer:
         }
 
     def diagnose_from_regions(self, regions_dict):
-        """
-        [추가] face_mesh_extractor의 아웃풋 딕셔너리를 통째로 받아 진단하는 편리한 엔트리 포인트
-        """
-        forehead_rgb = self._get_mean_rgb_from_region(regions_dict.get("forehead_region"))
-        left_cheek_rgb = self._get_mean_rgb_from_region(regions_dict.get("left_cheek_region"))
-        right_cheek_rgb = self._get_mean_rgb_from_region(regions_dict.get("right_cheek_region"))
-        eye_rgb = self._get_mean_rgb_from_region(regions_dict.get("iris_region"))
-        eyebrow_rgb = self._get_mean_rgb_from_region(regions_dict.get("eyebrow_region"))
-        lip_rgb = self._get_mean_rgb_from_region(regions_dict.get("lip_region"))
-        
-        # 볼은 좌우 평균값 사용
-        cheek_rgb = [
-            int((left_cheek_rgb[0] + right_cheek_rgb[0]) / 2),
-            int((left_cheek_rgb[1] + right_cheek_rgb[1]) / 2),
-            int((left_cheek_rgb[2] + right_cheek_rgb[2]) / 2)
-        ]
-        
-        return self.diagnose(cheek_rgb, forehead_rgb, eye_rgb, eyebrow_rgb, lip_rgb)
+            """
+            [최종 확정] 팀원 소스 규격에 맞춰 _region 명칭으로 완전 고정
+            """
+            forehead_rgb = self._get_mean_rgb_from_region(regions_dict.get("forehead_region"))
+            left_cheek_rgb = self._get_mean_rgb_from_region(regions_dict.get("left_cheek_region"))
+            right_cheek_rgb = self._get_mean_rgb_from_region(regions_dict.get("right_cheek_region"))
+            eye_rgb = self._get_mean_rgb_from_region(regions_dict.get("iris_region"))
+            eyebrow_rgb = self._get_mean_rgb_from_region(regions_dict.get("eyebrow_region"))
+            lip_rgb = self._get_mean_rgb_from_region(regions_dict.get("lip_region"))
+            
+            cheek_rgb = [
+                int((left_cheek_rgb[0] + right_cheek_rgb[0]) / 2),
+                int((left_cheek_rgb[1] + right_cheek_rgb[1]) / 2),
+                int((left_cheek_rgb[2] + right_cheek_rgb[2]) / 2)
+            ]
+            
+            return self.diagnose(cheek_rgb, forehead_rgb, eye_rgb, eyebrow_rgb, lip_rgb)
 
     def diagnose(self, cheek_rgb, forehead_rgb, eye_rgb, eyebrow_rgb, lip_rgb):
         # 1. 입력 부위별 색상 공간 특성 추출
