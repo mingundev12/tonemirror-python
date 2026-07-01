@@ -1,2 +1,11 @@
 fastapi
 uvicorn
+python-dotenv
+sqlalchemy
+numpy
+opencv-python
+mediapipe
+ultralytics
+pymysql
+pydantic
+requests

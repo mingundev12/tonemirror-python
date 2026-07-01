@@ -1,0 +1,7 @@
+# tonemirror-python/.dockerignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+.env
