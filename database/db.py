@@ -1,7 +1,12 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DB_URL = "mysql+pymysql://shsh:1234@localhost:3306/shsh"
+DB_URL = os.getenv(
+    "DB_URL",
+    "mysql+pymysql://root:123456@mysql:3306/tonemirror"
+)
 
 # 데이터 베이스 연결 - echo는 실행하는 sql 출력
 engine = create_engine(DB_URL, echo=True)
