@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from routers.preprocess_router import router as preprocess_router
 from routers.roi_router import router as roi_router
 from routers.color_makeup_router import router as color_makeup_router
+from routers.diagnose_router import router as diagnose_router
 
 
 logging.basicConfig(
@@ -48,6 +49,7 @@ app.mount(
 app.include_router(preprocess_router)
 app.include_router(roi_router)
 app.include_router(color_makeup_router)
+app.include_router(diagnose_router)
 
 # Health Check API
 @app.get("/")
