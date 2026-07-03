@@ -1,3 +1,4 @@
+# preprocess_service.py
 import cv2
 import logging
 
@@ -58,7 +59,8 @@ class PreprocessService:
 
             return {
                 "message": result["message"],
-                "files": generated_files
+                "files": generated_files,
+                "regions":result["regions"]
             }
 
         # 우리가 직접 발생시킨 예외는 그대로 전달
