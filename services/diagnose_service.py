@@ -44,6 +44,7 @@ class DiagnoseService:
         # 4. 최종 응답
         return {
             "message": preprocess_result["message"],
+            "original_image_id": preprocess_result["original_image_id"],
             "files": preprocess_result["files"],
             "personal_color": color_result["personal_color"],
             "detected_skin_hex": skin_hex

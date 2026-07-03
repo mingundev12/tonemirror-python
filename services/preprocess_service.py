@@ -59,6 +59,7 @@ class PreprocessService:
 
             return {
                 "message": result["message"],
+                "original_image_id": request.file_id,
                 "files": generated_files,
                 "regions":result["regions"]
             }
