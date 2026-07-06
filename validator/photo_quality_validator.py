@@ -60,17 +60,37 @@ class PhotoQualityValidator:
 
     def get_mean_brightness(self, region):
 
-        gray = cv2.cvtColor(
+        # LAB 색공간의 밝기(L) 사용
+        lab = cv2.cvtColor(
             region,
-            cv2.COLOR_BGR2GRAY
+            cv2.COLOR_BGR2LAB
         )
 
-        pixels = gray[gray > 0]
+        L = lab[:, :, 0]
+
+        # HSV에서 채도가 너무 낮은(배경/검정) 픽셀 제거
+        hsv = cv2.cvtColor(
+            region,
+            cv2.COLOR_BGR2HSV
+        )
+
+        S = hsv[:, :, 1]
+        V = hsv[:, :, 2]
+
+        # 피부 후보 픽셀만 선택
+        mask = (
+            (V > 40) &
+            (S > 20) &
+            (L > 20)
+        )
+
+        pixels = L[mask]
 
         if len(pixels) == 0:
             return 0
-        
-        return np.mean(pixels)
+
+        # 평균보다 중앙값이 그림자에 더 강인함
+        return float(np.median(pixels))
     
     # 그림자 검사 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
@@ -88,7 +108,7 @@ class PhotoQualityValidator:
             left_brightness - right_brightness
         )
 
-        if diff > 25:
+        if diff > 35:
             return(False, f"그림자가 심합니다. 밝기 차이 : {diff:.1f}")
         
         return(True, f"정상. 밝기 차이 : {diff:.1f}")
