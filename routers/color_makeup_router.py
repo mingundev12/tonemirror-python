@@ -95,7 +95,7 @@ def process_virtual_makeup_only(payload: VirtualMakeupRequest):
     file_save_path = os.path.join(output_dir, unique_filename)
     cv2.imwrite(file_save_path, makeup_img)
 
-    full_image_url = f"{BASE_URL}/storage/makeup_outputs/{payload.original_image_id}/{unique_filename}"
+    full_image_url = f"app/storage/makeup_outputs/{payload.original_image_id}/{unique_filename}"
 
     original_image_url = next(
         (file.file_url for file in payload.files if file.file_type == "original_image"),
