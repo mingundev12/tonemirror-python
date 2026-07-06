@@ -53,10 +53,15 @@ class PersonalColorAnalyzer:
         img_bgr = np.uint8([[ [rgb[2], rgb[1], rgb[0]] ]]) # RGB -> BGR 내부 변환 보정
         img_lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2Lab)
         img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-        
+
+        # OpenCV 8bit Lab은 L을 0~255로, a/b를 128 오프셋으로 담아 반환하므로
+        # 진단 기준(L 0~100, b -127~127)에 맞춰 실제 Lab 스케일로 환산
+        L = float(img_lab[0][0][0]) * 100.0 / 255.0
+        b = float(img_lab[0][0][2]) - 128.0
+
         return {
-            'L': img_lab[0][0][0],
-            'b': img_lab[0][0][2],
+            'L': L,
+            'b': b,
             's': img_hsv[0][0][1]
         }
 
@@ -129,8 +134,12 @@ class PersonalColorAnalyzer:
             scores[season] = total_diff
 
         best_season = min(scores, key=scores.get)
-        
+        sorted_diffs = sorted(scores.values())
+        score_gap = sorted_diffs[1] - sorted_diffs[0] if len(sorted_diffs) > 1 else 10.0
+        diagnosis_confidence = min(99, max(55, int(60 + score_gap * 3)))
+
         return {
             "personal_color": best_season,
-            "skin_rgb": user_skin_rgb
+            "skin_rgb": user_skin_rgb,
+            "diagnosis_confidence": diagnosis_confidence,
         }
