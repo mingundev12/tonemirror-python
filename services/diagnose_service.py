@@ -29,6 +29,7 @@ class DiagnoseService:
         
         skin_rgb = color_result.get("skin_rgb")
         personal_color = color_result.get("personal_color")
+        diagnois_confidence = color_result.get("diagnosis_confidence", 0)
 
         if skin_rgb is None or personal_color is None:
             raise HTTPException(
@@ -47,5 +48,7 @@ class DiagnoseService:
             "original_image_id": preprocess_result["original_image_id"],
             "files": preprocess_result["files"],
             "personal_color": color_result["personal_color"],
-            "detected_skin_hex": skin_hex
+            "detected_skin_hex": skin_hex,
+            "diagnosis_confidence": diagnois_confidence,
+            "original_image_url": request.file_url
         }

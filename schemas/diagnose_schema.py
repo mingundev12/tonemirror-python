@@ -15,3 +15,7 @@ class DiagnoseResponse(BaseModel):
     personal_color: str
 
     detected_skin_hex: str
+
+    diagnosis_confidence: int
+
+    original_image_url: str
